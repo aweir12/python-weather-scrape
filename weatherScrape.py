@@ -8,16 +8,11 @@ from datetime import date, timedelta
 url1 = r'https://english.wunderground.com/history/airport/OJAM/'
 url2 = r'/DailyHistory.html?req_city=Amman&req_state=&req_statename=Jordan&reqdb.zip=&reqdb.magic=&reqdb.wmo'
 
-# Building Date Timeline
+# Beginning and end dates
 begDate = date(2008, 1, 1)
-endDate = date(2010, 1, 1)
+endDate = date(2018, 2, 8)
 delta = endDate - begDate
 histDates = []
-
-# Create a list of dates to get data for
-for i in range(delta.days + 1):
-    dt = begDate + timedelta(days=i)
-    histDates.append(dt)
 
 # Take a particular date and return table level data from html source code in a df
 def histDfCreate(theDate):
@@ -72,29 +67,30 @@ def histDfCreate(theDate):
     
     # Add a date column
     df['Date'] = theDate
-    
-    # Dealing with column heading changes for time zones
-    try:
-        df['Time'] = df['Time (EET)'] + ' EET'
-    except:
-        df['Time'] = df['Time (EEST)'] + ' EEST'
-    
-    # Drop time zone specific columns
-    cols = [c for c in df.columns if c.lower()[:6] != 'time (']
-    df = df[cols]
+    if 'Time (EET)' in df.columns:
+        df['Timezone'] = 'EET'
+        df['Time'] = df['Time (EET)']
+        df.drop(['Time (EET)'], axis=1, inplace='True')
+    elif 'Time (EEST)' in df.columns:
+        df['Timezone'] = 'EEST'
+        df['Time'] = df['Time (EEST)']
+        df.drop(['Time (EEST)'], axis=1, inplace='True')
     
     # Drop duplicate values, just take first value
     df.drop_duplicates(['Date','Time'],keep='first',inplace ='True')
     
     # Return the data frame
     return df
-# End of function...
 
+# Create a list of dates to get data for
+for i in range(delta.days + 1):
+    dt = begDate + timedelta(days=i)
+    histDates.append(dt)
 
 # Create initial df to put data in
 wOutput = histDfCreate(histDates[0])
 
-# Iterate over remaining dates and append df
+# Iterate over remainint dates and append df
 for i in histDates:
     if histDates.index(i) > 0:
         wOutput = wOutput.append(histDfCreate(i))
@@ -105,6 +101,7 @@ wOutput = wOutput.reset_index(drop="true")
 # Pop a few columns (cleanup)
 cols = list(wOutput)
 cols
+cols.insert(0, cols.pop(cols.index('Timezone')))
 cols.insert(0, cols.pop(cols.index('Time')))
 cols.insert(0, cols.pop(cols.index('Date')))
 wOutput = wOutput.ix[:, cols]
